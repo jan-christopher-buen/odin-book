@@ -1,0 +1,64 @@
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "postgresql"
+  url = env("DATABASE_URL")
+}
+model User {
+  id String @id @default(cuid())
+  username String @unique
+  displayName String
+  passwordHash String
+  bio String @default("")
+  avatar String @default("sun")
+  createdAt DateTime @default(now())
+  posts Post[]
+  comments Comment[]
+  likes Like[]
+  outgoing Follow[] @relation("requester")
+  incoming Follow[] @relation("recipient")
+}
+model Follow {
+  requesterId String
+  recipientId String
+  status FollowStatus @default(PENDING)
+  createdAt DateTime @default(now())
+  requester User @relation("requester", fields: [requesterId], references: [id], onDelete: Cascade)
+  recipient User @relation("recipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  @@id([requesterId, recipientId])
+  @@index([recipientId, status, createdAt])
+}
+enum FollowStatus {
+  PENDING
+  ACCEPTED
+}
+model Post {
+  id String @id @default(cuid())
+  authorId String
+  content String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  comments Comment[]
+  likes Like[]
+  @@index([authorId, createdAt, id])
+  @@index([createdAt, id])
+}
+model Comment {
+  id String @id @default(cuid())
+  authorId String
+  postId String
+  content String
+  createdAt DateTime @default(now())
+  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  @@index([postId, createdAt, id])
+}
+model Like {
+  userId String
+  postId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  @@id([userId, postId])
+}
