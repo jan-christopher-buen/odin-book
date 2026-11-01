@@ -7,7 +7,9 @@ if (process.env.NODE_ENV === 'production')
 const url = new URL(process.env.DATABASE_URL)
 if (
   !['localhost', '127.0.0.1'].includes(url.hostname) ||
-  !['/odin_book', '/odin_book_test'].includes(url.pathname)
+  !['/odin_book', '/odin_book_test'].includes(url.pathname) ||
+  (url.searchParams.get('host') &&
+    url.searchParams.get('host') !== '/var/run/postgresql')
 )
   throw new Error('Seed only a dedicated local Odin-Book database.')
 faker.seed(241)

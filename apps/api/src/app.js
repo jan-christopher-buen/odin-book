@@ -49,6 +49,10 @@ export function createApp(options = {}) {
     next()
   })
   app.use(express.json({ limit: '20kb' }))
+  app.use((req, _res, next) => {
+    req.body ??= {}
+    next()
+  })
   const pool = new pg.Pool({
     connectionString: options.databaseUrl ?? process.env.DATABASE_URL,
   })
@@ -114,12 +118,10 @@ export function createApp(options = {}) {
       token.length !== req.session.csrf.length ||
       !crypto.timingSafeEqual(Buffer.from(token), Buffer.from(req.session.csrf))
     )
-      return res
-        .status(403)
-        .json({
-          error: 'Security token expired. Refresh and try again.',
-          code: 'CSRF',
-        })
+      return res.status(403).json({
+        error: 'Security token expired. Refresh and try again.',
+        code: 'CSRF',
+      })
     next()
   })
   app.get('/api/session', (req, res) =>
@@ -210,36 +212,32 @@ export function createApp(options = {}) {
   app.use('/api', authenticated, routes)
   app.use((_req, res) => res.status(404).json({ error: 'Page not found.' }))
   app.use((error, _req, res, _next) => {
+    if (error.type === 'entity.parse.failed')
+      return res.status(400).json({ error: 'Send a valid JSON request body.' })
+    if (error.type === 'entity.too.large')
+      return res.status(413).json({ error: 'Request body is too large.' })
     if (error instanceof ZodError)
-      return res
-        .status(400)
-        .json({
-          error: error.issues
-            .map(
-              (issue) => `${issue.path.join('.') || 'Form'}: ${issue.message}`,
-            )
-            .join(' '),
-        })
+      return res.status(400).json({
+        error: error.issues
+          .map((issue) => `${issue.path.join('.') || 'Form'}: ${issue.message}`)
+          .join(' '),
+      })
     if (error.code === 'P2002')
-      return res
-        .status(409)
-        .json({
-          error:
-            'That username or relationship already exists. Refresh and try again.',
-        })
+      return res.status(409).json({
+        error:
+          'That username or relationship already exists. Refresh and try again.',
+      })
     if (['P2003', 'P2025'].includes(error.code))
       return res.status(404).json({ error: 'This item no longer exists.' })
     const status = error.status ?? 500
     if (status >= 500 && !options.test)
       console.error('Request failed:', error.code ?? error.name)
-    res
-      .status(status)
-      .json({
-        error:
-          status >= 500
-            ? 'Something went wrong. Please try again.'
-            : error.message,
-      })
+    res.status(status).json({
+      error:
+        status >= 500
+          ? 'Something went wrong. Please try again.'
+          : error.message,
+    })
   })
   return app
 }

@@ -432,6 +432,81 @@ test('tied timestamps paginate posts, users and comments without skips or duplic
   assert.equal(new Set(people).size, 25)
   await a.agent.get('/api/posts?cursor=broken').expect(400)
 })
+test('malformed, missing and oversized bodies fail safely without reflecting credentials', async () => {
+  const a = clients.alice
+  const malformed = await a.agent
+    .post('/api/login')
+    .set('Content-Type', 'application/json')
+    .send('{"password":"do-not-reflect",')
+    .expect(400)
+  assert.equal(malformed.body.error, 'Send a valid JSON request body.')
+  assert.ok(!JSON.stringify(malformed.body).includes('do-not-reflect'))
+  await send(a, 'patch', '/requests/unknown', undefined, 400)
+  await send(a, 'post', '/login', undefined, 400)
+  await send(a, 'post', '/posts', { content: 'x'.repeat(25000) }, 413)
+})
+test('production requires proxy authentication and emits secure host-only cookies through HTTPS forwarding', async () => {
+  const previous = {
+    NODE_ENV: process.env.NODE_ENV,
+    WEB_ORIGIN: process.env.WEB_ORIGIN,
+    PROXY_SECRET: process.env.PROXY_SECRET,
+  }
+  let productionApp
+  try {
+    process.env.NODE_ENV = 'production'
+    process.env.WEB_ORIGIN = 'https://commonroom.example'
+    process.env.PROXY_SECRET = 'test-proxy-secret-only'
+    productionApp = createApp({
+      test: true,
+      databaseUrl: testUrl,
+      secret: 'test-signing-secret-with-32-characters',
+    })
+    await request(productionApp).get('/api/health').expect(200)
+    await request(productionApp)
+      .get('/api/session')
+      .set('X-Forwarded-Proto', 'https')
+      .expect(403)
+    const bootstrap = await request(productionApp)
+      .get('/api/session')
+      .set('X-Commonroom-Proxy', process.env.PROXY_SECRET)
+      .set('X-Forwarded-Proto', 'https')
+      .expect(200)
+    const cookie = bootstrap.headers['set-cookie'][0]
+    assert.match(cookie, /; Secure/)
+    assert.match(cookie, /; HttpOnly/)
+    assert.match(cookie, /; SameSite=Lax/)
+    assert.match(cookie, /Path=\/api/)
+    assert.ok(!cookie.includes('Domain='))
+    const guest = await request(productionApp)
+      .post('/api/guest')
+      .set('Cookie', cookie.split(';')[0])
+      .set('X-Commonroom-Proxy', process.env.PROXY_SECRET)
+      .set('X-Forwarded-Proto', 'https')
+      .set('Origin', process.env.WEB_ORIGIN)
+      .set('X-CSRF-Token', bootstrap.body.csrfToken)
+      .expect(200)
+    assert.equal(guest.body.guest, true)
+    assert.equal(guest.headers['cache-control'], 'no-store')
+    const restored = await request(productionApp)
+      .get('/api/session')
+      .set('Cookie', guest.headers['set-cookie'][0].split(';')[0])
+      .set('X-Commonroom-Proxy', process.env.PROXY_SECRET)
+      .set('X-Forwarded-Proto', 'https')
+      .expect(200)
+    assert.equal(restored.body.guest, true)
+    const insecure = await request(productionApp)
+      .get('/api/session')
+      .set('X-Commonroom-Proxy', process.env.PROXY_SECRET)
+      .set('X-Forwarded-Proto', 'http')
+      .expect(200)
+    assert.equal(insecure.headers['set-cookie'], undefined)
+  } finally {
+    if (productionApp) await productionApp.locals.close()
+    for (const [key, value] of Object.entries(previous))
+      if (value === undefined) delete process.env[key]
+      else process.env[key] = value
+  }
+})
 test('expired session cannot access private data', async () => {
   await db.$executeRawUnsafe('DELETE FROM "Session"')
   await clients.alice.agent.get('/api/posts').expect(401)

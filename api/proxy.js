@@ -43,10 +43,8 @@ export default async function proxy(req, res) {
     )
     res.status(response.status).send(Buffer.from(await response.arrayBuffer()))
   } catch {
-    res
-      .status(502)
-      .json({
-        error: 'The community is taking a moment. Please try again shortly.',
-      })
+    res.status(502).json({
+      error: 'The community is taking a moment. Please try again shortly.',
+    })
   }
 }
