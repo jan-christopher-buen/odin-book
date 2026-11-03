@@ -1,0 +1,8 @@
+node_modules/
+.git/
+.vercel/
+.env*
+**/.env*
+.playwright-mcp/
+coverage/
+*.log
