@@ -25,7 +25,7 @@ export default async function proxy(req, res) {
       method: req.method,
       headers,
       redirect: 'error',
-      signal: AbortSignal.timeout(20000),
+      signal: AbortSignal.timeout(90000),
       ...(!['GET', 'HEAD'].includes(req.method) && req.body !== undefined
         ? {
             body:
