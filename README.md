@@ -87,9 +87,15 @@ State-changing requests require a session-bound CSRF token and reject a supplied
 
 Posts allow 3,000 characters, comments 1,000, bios 240, and display names 50. There are no uploads, rich HTML, chat, notifications, or real-time updates. Refreshing/refetching retrieves changes from other sessions. Rate limits are in-process and intended for one API instance; a multi-instance deployment should use a shared limiter store. There is no password recovery, email verification, moderation console, or account deletion flow.
 
-## Deployment preparation
+## Live app and deployment
 
-See [deployment instructions](DEPLOYMENT.md) for Neon PostgreSQL, a Render API, and a Vercel frontend. No live instance is published yet.
+[Visit Commonroom](https://commonroom-odin-book.vercel.app) · [API health](https://commonroom-api-old9.onrender.com/api/health)
+
+Hosted on Vercel Hobby, Render Free, and a dedicated Neon Free PostgreSQL database. Choose **Explore as guest** for read-only access, or create an account to participate. No shared login credentials are published.
+
+The free API can sleep after inactivity, so the first visit may take around a minute. The frontend proxy allows time for it to wake. Free-plan usage limits can temporarily affect availability. Sessions and community data live in PostgreSQL and survive API redeploys.
+
+See [deployment instructions](DEPLOYMENT.md) for the production commands, proxy, cookies, and environment configuration.
 
 ## Assets
 

@@ -1,6 +1,6 @@
-# Deployment preparation
+# Deployment
 
-This repository is prepared for a Vercel frontend, a Render API, and Neon PostgreSQL. No resources have been provisioned. Verify the deployed proxy and cookies before treating a release as ready.
+Commonroom runs on [Vercel](https://commonroom-odin-book.vercel.app), a [Render API](https://commonroom-api-old9.onrender.com/api/health), and a dedicated Neon PostgreSQL database. All three use free plans. Render and Neon are in Singapore; the Vercel proxy function is configured for Singapore. Production data is separate from local development and test databases. No local seed or test data is deployed.
 
 ## 1. Neon PostgreSQL
 
@@ -15,12 +15,12 @@ Reference: [Neon connection pooling](https://neon.com/docs/connect/connection-po
 Create a Node web service from this repository with the repository root as its working directory.
 
 - Node version: **24.x** (`NODE_VERSION=24`).
-- Build command: `npm ci --include=dev && npm run db:generate`
-- Pre-deploy command: `npm run db:migrate`
+- Build command: `npm ci --include=dev && npm run db:generate && npm run db:migrate`
+- Pre-deploy command: none (unavailable on Free)
 - Start command: `npm start`
-- Health check path: `/api/health`
+- Health: Render currently uses its default TCP readiness check; `/api/health` is available for HTTP checks. To configure HTTP checking, set this path in the Render Dashboard’s Settings → Health Checks section.
 
-If the selected service does not support pre-deploy commands, use `npm ci --include=dev && npm run db:generate && npm run db:migrate` as the build command for this single-service project. Coordinate future incompatible schema changes separately.
+The Free service runs committed migrations during its build. Do not add seeding to this command. A paid service could move migrations to a pre-deploy command; coordinate future incompatible schema changes separately.
 
 Set `NODE_ENV=production`, `DATABASE_URL`, `SESSION_SECRET`, `PROXY_SECRET`, and `WEB_ORIGIN=https://your-exact-frontend-host`. Let Render supply `PORT`. Generate independent random values of at least 32 characters for the signing and proxy secrets. The proxy secret must match Vercel’s value. `WEB_ORIGIN` has no trailing slash and must be an HTTPS origin. The service refuses incomplete production configuration.
 
@@ -45,8 +45,10 @@ Preview domains need their own API environment with the exact matching `WEB_ORIG
 
 Reference: [Vercel rewrites](https://vercel.com/docs/routing/rewrites), [Node function request/response](https://vercel.com/docs/functions/runtimes/node-js).
 
-## 4. Release verification
+## 4. Release verification and free-plan limits
 
 After an authorized push/deployment, verify signup, login, refresh restoration, CSRF rejection, logout cookie expiry, guest browsing, and guest mutation rejection through the Vercel URL. Inspect browser Network headers: session cookies should be HttpOnly, Secure, SameSite=Lax, Path=/api, and have no Domain; they should return on `/api/session` refresh. Confirm multiple Set-Cookie headers survive the function, protected data is never cached, and Render directly rejects requests lacking the proxy secret. Confirm a forged Origin and a missing CSRF token cannot mutate data.
 
-Check a frontend deep link refresh and verify the API routing is not swallowed by the SPA fallback. Compare the request Origin, fixed upstream URL, proxy-added HTTPS header, and resulting Secure session cookie. These local contracts have automated coverage; platform ingress behavior still needs this deployed smoke check. Add confirmed live links to the README only after verification.
+Check a frontend deep link refresh and verify the API routing is not swallowed by the SPA fallback. Compare the request Origin, fixed upstream URL, proxy-added HTTPS header, and resulting Secure session cookie. These contracts also have local automated coverage. Repeat the hosted smoke checks after changes to routing, session settings, or hosting configuration. Add confirmed live links to the README only after verification.
+
+Render Free sleeps after 15 minutes without inbound traffic, and its free instance hours are shared across the workspace. Cold starts can take around a minute. Vercel Hobby and Neon Free also enforce usage caps. Keep paid upgrades and additional paid capacity disabled unless explicitly approved. See [Render Free limits](https://render.com/docs/free), [Vercel Hobby](https://vercel.com/docs/plans/hobby), and [Neon pricing](https://neon.com/pricing).
